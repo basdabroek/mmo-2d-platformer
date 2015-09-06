@@ -1,23 +1,39 @@
 using System;
 using UnityEngine;
+using System.Collections;
 
 public class PlatformerCharacter2D : MonoBehaviour
 {
+
+    public bool UpdateCharacter { get; private set; }
+
     const float k_GroundedRadius = .2f; // Radius of the overlap circle to determine if grounded
     const float k_CeilingRadius = .01f; // Radius of the overlap circle to determine if the player can stand up
 
     private float m_MaxSpeed = 10f;
-    private float m_JumpForce = 400f;
+    private float m_JumpForce = 40f;
     private Transform m_GroundCheck;    // A position marking where to check if the player is grounded.
     private Transform m_CeilingCheck;   // A position marking where to check for ceilings
     private Animator m_Anim;            // Reference to the player's animator component.
     private Rigidbody2D m_Rigidbody2D;
     private bool m_FacingRight = true;  // For determining which way the player is currently facing.
     private bool m_Jump;
-    private float direction;
     private bool jumping;
     private bool crouching;
     private bool grounded;            // Whether or not the player is grounded.
+
+    private float moveValue;
+
+    void Start()
+    {
+        InputManager.instance.Horizontal += Move;
+        InputManager.instance.Jump += Jump;
+        InputManager.instance.Crouch += Crouch;
+        InputManager.instance.Stand += Stand;
+
+        Resume(); // start character loop
+    }
+
 
     /// <summary>
     /// Awake this instance.
@@ -30,26 +46,30 @@ public class PlatformerCharacter2D : MonoBehaviour
         m_Rigidbody2D = GetComponent<Rigidbody2D>();
     }
 
-    /// <summary>
-    /// Fixeds the update.
-    /// </summary>
-    private void FixedUpdate()
-    {
-        Move();
-        Jump();
-    }
-
+   
     /// <summary>
     /// Update this instance.
     /// </summary>
-    void Update()
+    private IEnumerator UpdateLoop()
     {
-        Animations();
-        direction = Input.GetAxis("Horizontal"); // later in een user input class / inputmanager
-        crouching = Input.GetKey(KeyCode.LeftControl);
-        if (Input.GetButtonDown("Jump"))
-            jumping = true;
+        while(UpdateCharacter)
+        {
+            Animations();
+            yield return null;
+        }
     }
+
+    public void Pause()
+    {
+        UpdateCharacter = false;
+    }
+
+    public void Resume()
+    {
+        UpdateCharacter = true;
+        StartCoroutine(UpdateLoop());
+    }
+     
 
     /// <summary>
     /// Determines whether this instance is grounded.
@@ -76,7 +96,7 @@ public class PlatformerCharacter2D : MonoBehaviour
         if (Physics2D.OverlapCircle(m_CeilingCheck.position, k_CeilingRadius) || crouching) {
             crouch = true;
         }
-        return crouch;
+        return crouching;
     }
 
     /// <summary>
@@ -84,20 +104,38 @@ public class PlatformerCharacter2D : MonoBehaviour
     /// </summary>
     private void UpdateFacing()
     {
-        if ((direction > 0 && !m_FacingRight) || (direction < 0 && m_FacingRight)) {
+        if ((moveValue > 0 && !m_FacingRight) || (moveValue < 0 && m_FacingRight)) {
             Flip();
         }
     }
 
     /// <summary>
-    /// Jump this instance.
+    /// Jump method
     /// </summary>
     private void Jump()
     {
-        if (IsGrounded() && jumping) {
+        if (IsGrounded()) {
             m_Rigidbody2D.AddForce(new Vector2(0f, m_JumpForce));
-            jumping = false;
         }
+    }
+
+    /// <summary>
+    /// Crouch method
+    /// </summary>
+    private void Crouch()
+    {
+        crouching = true;
+    }
+
+
+    private void Stand()
+    {
+        crouching = false;
+    }
+
+    private void Idle()
+    {
+
     }
 
     /// <summary>
@@ -112,11 +150,15 @@ public class PlatformerCharacter2D : MonoBehaviour
     /// <summary>
     /// Move this instance.
     /// </summary>
-    private void Move()
+    private void Move(float val)
     {
-        if (direction != 0) {
-            m_Rigidbody2D.velocity = new Vector2(direction * m_MaxSpeed, m_Rigidbody2D.velocity.y);
+        if (val != 0) {
+            m_Rigidbody2D.velocity = new Vector2(val * m_MaxSpeed, m_Rigidbody2D.velocity.y);
+            moveValue = val;
             UpdateFacing();
+        }
+        else {
+            moveValue = 0;
         }
     }
 
@@ -128,6 +170,6 @@ public class PlatformerCharacter2D : MonoBehaviour
         m_Anim.SetBool("Ground", IsGrounded());
         m_Anim.SetFloat("vSpeed", m_Rigidbody2D.velocity.y);
         m_Anim.SetBool("Crouch", IsCrouching());
-        m_Anim.SetFloat("Speed", Mathf.Abs(direction));
+        m_Anim.SetFloat("Speed", Mathf.Abs(moveValue));
     }
 }
